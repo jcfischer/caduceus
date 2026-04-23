@@ -27,6 +27,7 @@
 import { existsSync, readFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
+import { logStatsEvent } from './lib/skill-stats-log';
 
 const PENDING_DIR = join(homedir(), '.claude', 'MEMORY', 'STATE');
 
@@ -116,6 +117,13 @@ async function main() {
 
     const nudge = formatNudge(pending);
     console.log(nudge);
+
+    logStatsEvent({
+      type: 'nudge_injected',
+      session_id: sessionId,
+      count: pending.count,
+      tools: pending.tools,
+    });
 
     // Clear marker so it fires exactly once.
     rmSync(markerPath, { force: true });

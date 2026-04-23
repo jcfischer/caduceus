@@ -1,7 +1,7 @@
 # arc-manifest.yaml — Caduceus capability declaration
 schema: arc/v1
 name: caduceus
-version: 0.1.1
+version: 0.2.0
 type: skill
 tier: community
 namespace: jcfischer
@@ -14,29 +14,52 @@ author:
 
 provides:
   files:
+    # skill-manage meta-skill
     - source: skills/skill-manage/SKILL.md
       target: ~/.claude/skills/skill-manage/SKILL.md
     - source: skills/skill-manage/scripts/skill-manage.ts
       target: ~/.claude/skills/skill-manage/scripts/skill-manage.ts
+    # skill-stats reporter (v0.2.0)
+    - source: skills/skill-stats/SKILL.md
+      target: ~/.claude/skills/skill-stats/SKILL.md
+    - source: skills/skill-stats/scripts/skill-stats.ts
+      target: ~/.claude/skills/skill-stats/scripts/skill-stats.ts
+    # hooks
     - source: hooks/SkillNudgeInject.hook.ts
       target: ~/.claude/hooks/SkillNudgeInject.hook.ts
     - source: hooks/handlers/SkillNudge.ts
       target: ~/.claude/hooks/handlers/SkillNudge.ts
+    - source: hooks/SkillLoadLogger.hook.ts
+      target: ~/.claude/hooks/SkillLoadLogger.hook.ts
+    # shared lib
+    - source: hooks/lib/skill-stats-log.ts
+      target: ~/.claude/hooks/lib/skill-stats-log.ts
   skill:
     - trigger: "skill-manage"
     - trigger: "save as skill"
     - trigger: "create skill"
     - trigger: "patch skill"
     - trigger: "update skill"
+    - trigger: "skill-stats"
+    - trigger: "skill stats"
+    - trigger: "skill analytics"
+    - trigger: "skill usage"
+    - trigger: "caduceus stats"
   cli:
     - name: skill-manage
       command: bun ~/.claude/skills/skill-manage/scripts/skill-manage.ts
       description: Create, edit, patch, delete, or list user skills (SKILL.md CRUD)
+    - name: skill-stats
+      command: bun ~/.claude/skills/skill-stats/scripts/skill-stats.ts
+      description: Caduceus usage analytics — loaded/patched/nudge funnel reports
   hooks:
     - event: Stop
       command: ${PAI_DIR}/hooks/handlers/SkillNudge.ts
     - event: UserPromptSubmit
       command: ${PAI_DIR}/hooks/SkillNudgeInject.hook.ts
+    - event: PreToolUse
+      matcher: Skill
+      command: ${PAI_DIR}/hooks/SkillLoadLogger.hook.ts
 
 depends_on:
   tools:

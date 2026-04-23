@@ -21,21 +21,46 @@ Caduceus ports the first two and the tool directly into Claude Code. The backgro
 
 ```
 caduceus/
-├── arc-manifest.yaml            # arc/v1 manifest — install, file map, hook registration
-├── package.json                 # bun meta
-├── skills/skill-manage/         # the meta-skill: create / edit / patch / delete user skills
-│   ├── SKILL.md
-│   └── scripts/skill-manage.ts  # Bun CLI, ~370 LOC, no runtime deps
+├── arc-manifest.yaml             # arc/v1 manifest — install, file map, hook registration
+├── package.json                  # bun meta
+├── skills/
+│   ├── skill-manage/             # the meta-skill: create / edit / patch / delete user skills
+│   │   ├── SKILL.md
+│   │   └── scripts/skill-manage.ts
+│   └── skill-stats/              # v0.2.0: usage analytics reporter
+│       ├── SKILL.md
+│       └── scripts/skill-stats.ts
 ├── hooks/
-│   ├── SkillNudgeInject.hook.ts # UserPromptSubmit → injects <system-reminder> with session context
-│   └── handlers/SkillNudge.ts   # Stop → counts tool_use, writes per-session marker (dual-use: lib + standalone)
-├── scripts/postinstall.sh       # idempotent CLAUDE.md guidance append (run by arc postinstall)
-├── examples/guidance-snippet.md # reference copy of the CLAUDE.md block
+│   ├── SkillNudgeInject.hook.ts  # UserPromptSubmit → injects <system-reminder>
+│   ├── SkillLoadLogger.hook.ts   # v0.2.0: PreToolUse on Skill → logs `loaded` event
+│   ├── handlers/SkillNudge.ts    # Stop → counts tool_use, writes per-session marker
+│   └── lib/skill-stats-log.ts    # v0.2.0: shared jsonl emitter
+├── scripts/postinstall.sh        # idempotent CLAUDE.md guidance append
+├── examples/guidance-snippet.md  # reference copy of the CLAUDE.md block
 └── docs/
     ├── architecture.md
-    ├── settings-registration.md # manual fallback for non-arc installs
+    ├── settings-registration.md  # manual fallback for non-arc installs
     └── hermes-origin.md
 ```
+
+## v0.2.0 — Skill usage analytics
+
+Every caduceus event (nudge fired, nudge injected, skill loaded, created, patched, deleted) writes a JSONL line to `~/.claude/MEMORY/STATE/skill-stats.jsonl`.
+
+The `skill-stats` reporter surfaces signal:
+
+```bash
+$ skill-stats summary              # event counts + nudge→save funnel (default)
+$ skill-stats loaded --limit 10    # most-loaded skills
+$ skill-stats drift                # skills ranked by patch frequency
+$ skill-stats unused --days 30     # installed but never-loaded
+$ skill-stats nudges               # nudge_fired → injected → created/patched funnel
+$ skill-stats raw --limit 50       # recent events
+```
+
+All subcommands accept `--days N` (window) and `--json` (machine-readable).
+
+This exists because Luna's pushback on the v2 plan was correct: you can't tune a background reviewer (feature #1) without baseline data on what the v1 nudge already produces. Analytics ships first so we can measure before changing.
 
 ## Install
 

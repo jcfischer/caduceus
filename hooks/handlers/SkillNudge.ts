@@ -25,6 +25,7 @@
 import { readFileSync, existsSync, appendFileSync, mkdirSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { homedir } from 'os';
+import { logStatsEvent } from '../lib/skill-stats-log';
 
 const LOG_PATH = join(homedir(), '.claude', 'MEMORY', 'STATE', 'skill-nudge.log');
 const PENDING_DIR = join(homedir(), '.claude', 'MEMORY', 'STATE');
@@ -184,6 +185,13 @@ export async function handleSkillNudge(
       `\n💡 [SkillNudge] ${count} tool calls this turn (${preview}). ` +
         `Consider saving the approach: Skill('skill-manage') → create.\n`,
     );
+
+    logStatsEvent({
+      type: 'nudge_fired',
+      session_id: hookInput.session_id ?? null,
+      count,
+      tools: unique,
+    });
 
     // Write pending marker (per-session) so SkillNudgeInject (UserPromptSubmit)
     // can surface the nudge into the model's context on the NEXT user turn.

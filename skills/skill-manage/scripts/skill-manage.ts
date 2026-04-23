@@ -23,6 +23,7 @@ import {
 } from 'fs';
 import { join, dirname, resolve, relative } from 'path';
 import { homedir } from 'os';
+import { logStatsEvent } from '../../../hooks/lib/skill-stats-log';
 
 const SKILLS_DIR = join(homedir(), '.claude', 'skills');
 const MAX_CONTENT_BYTES = 200_000;
@@ -139,6 +140,8 @@ function actionCreate(name: string, content: string, category?: string): Result 
   const skillMd = join(dir, 'SKILL.md');
   atomicWrite(skillMd, content);
 
+  logStatsEvent({ type: 'created', skill: name, category, session_id: process.env.CLAUDE_SESSION_ID ?? null });
+
   return {
     success: true,
     message: `skill '${name}' created`,
@@ -209,6 +212,7 @@ function actionPatch(
   }
 
   atomicWrite(target, newContent);
+  logStatsEvent({ type: 'patched', skill: name, file: label, session_id: process.env.CLAUDE_SESSION_ID ?? null });
   return { success: true, message: `skill '${name}' patched (${count} replacement${count === 1 ? '' : 's'})`, file: label };
 }
 
@@ -216,6 +220,7 @@ function actionDelete(name: string): Result {
   const loc = findSkill(name);
   if (!loc) return { success: false, error: `skill '${name}' not found` };
   rmSync(loc.path, { recursive: true, force: true });
+  logStatsEvent({ type: 'deleted', skill: name, session_id: process.env.CLAUDE_SESSION_ID ?? null });
   return { success: true, message: `skill '${name}' deleted`, path: relative(SKILLS_DIR, loc.path) };
 }
 
