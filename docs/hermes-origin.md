@@ -14,13 +14,20 @@ Caduceus is a Claude Code port of the self-improving loop from [NousResearch/her
 
 ## What's *not* ported (yet)
 
-| Hermes feature | Status in Caduceus | Why skipped |
+| Hermes feature | Status in Caduceus | Why skipped / plan |
 |----------------|-------------------|-------------|
-| Background review fork (`_spawn_background_review` at `run_agent.py:2816`) | Roadmap | Claude Code doesn't expose a runtime agent-spawning API from hooks. Needs `Agent(run_in_background=true)` from within the conversation — possible via marker files + UserPromptSubmit dispatch. |
-| `skills_guard` security scanner | Skipped | Small scope. Trust-the-agent model for personal use. |
-| `fuzzy_match` patch helper | Skipped | Exact match gets 95% of cases; fuzzy matcher is a real dependency to port. |
+| Background review fork (`_spawn_background_review` at `run_agent.py:2816`) | Roadmap (#1) | Claude Code doesn't expose a runtime agent-spawning API from hooks. Needs `Agent(run_in_background=true)` from within the conversation — possible via marker files + UserPromptSubmit dispatch. |
+| `skills_guard` security scanner | Roadmap (#4) | Essential if publishing to agentskills.io; deferrable for solo use. |
+| `fuzzy_match` patch helper (full) | Partial — diff preview shipped in v0.3.0 | Preview-on-failure port landed as quick win; full multi-strategy matching (whitespace-insensitive, indent-flexible, block-anchor) still deferred. |
 | Memory loop (`_MEMORY_REVIEW_PROMPT`, `memory_manager.py`) | Out of scope | PAI already has Tana/ai-memory integration. |
 | `session_search` FTS5 cross-session recall | Out of scope | PAI has `/work` and `/w` skills for this. |
+
+## v0.2.0 / v0.3.0 additions
+
+| Caduceus piece | Hermes equivalent | Notes |
+|----------------|-------------------|-------|
+| `skill-stats` reporter + `skill-stats.jsonl` emitter | No direct hermes equivalent | Added because Luna's v2 review insisted: "you can't evaluate whether a background reviewer produces signal without baseline data on v1 nudges." Analytics shipped before autonomy. |
+| `buildNotFoundPreview` + `buildMultipleMatchesPreview` in `skill-manage.ts` | `format_no_match_hint` in hermes `fuzzy_match.py` | Port of the UX fix only. Uses simple `commonPrefix` + substring containment rather than hermes' full fuzzy matcher. |
 
 ## Why "Caduceus"
 

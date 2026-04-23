@@ -1,6 +1,6 @@
 {
   "name": "caduceus",
-  "version": "0.1.0",
+  "version": "0.3.1",
   "description": "Self-improving skills for Claude Code — skill-manage meta-skill + SkillNudge Stop/UserPromptSubmit hook pair. Ported from NousResearch/hermes-agent.",
   "type": "module",
   "scripts": {

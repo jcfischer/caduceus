@@ -43,6 +43,10 @@ caduceus/
     └── hermes-origin.md
 ```
 
+## v0.3.1 — Docs refresh (patch release)
+
+Documentation catch-up only: `docs/architecture.md` and `docs/hermes-origin.md` now cover v0.2.0 analytics + v0.3.0 diff preview that shipped ahead of doc updates.
+
 ## v0.3.0 — Patch-failure diff preview
 
 When `skill-manage patch` fails because the old string wasn't found (or matched multiple times), the response now includes a `preview` field with diff-like context so the model can self-correct without re-reading the whole file:

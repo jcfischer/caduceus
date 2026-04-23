@@ -1,5 +1,17 @@
 # Architecture
 
+## Five cooperating pieces (v0.3.x)
+
+| Piece | Role | Added in |
+|-------|------|---------|
+| `skills/skill-manage` | Meta-skill: CRUD on user skills + diff-preview on patch failure | v0.1.0 (preview in v0.3.0) |
+| `hooks/handlers/SkillNudge.ts` (Stop) | Counts tool_use, writes per-session marker | v0.1.0 |
+| `hooks/SkillNudgeInject.hook.ts` (UserPromptSubmit) | Surfaces marker as `<system-reminder>` | v0.1.0 |
+| `skills/skill-stats` + reporter | Usage analytics | v0.2.0 |
+| `hooks/SkillLoadLogger.hook.ts` (PreToolUse:Skill) | Emits `loaded` event | v0.2.0 |
+
+All emit to `~/.claude/MEMORY/STATE/skill-stats.jsonl` via the shared `hooks/lib/skill-stats-log.ts` helper.
+
 ## Three cooperating pieces
 
 ### 1. `skills/skill-manage` — the meta-skill
@@ -21,6 +33,15 @@ Actions implemented:
 | `list` | Enumerate user skills | none |
 
 All actions use **atomic writes** (temp file + rename) and return JSON for programmatic consumption.
+
+### Diff-preview on patch failure (v0.3.0)
+
+`patch` failures include a `preview` field with diff-like context so the model can self-correct without re-reading the whole file:
+
+- **Not found** — finds the line in the target file with highest first-line overlap against `old`, renders ±3 lines with a `»` marker on the likely intended line, plus an overlap % score.
+- **Multiple matches** — lists up to 3 match locations with line numbers and ±2 lines of context around each, plus a total-match count.
+
+The heuristic is deliberately simple: `commonPrefix` + substring containment on trimmed lines. Full multi-strategy fuzzy matching (whitespace-insensitive, indent-flexible, block-anchor) is a separate future port.
 
 ### 2. `hooks/handlers/SkillNudge.ts` — Stop handler
 
@@ -65,6 +86,23 @@ Last user-text message is found by scanning the transcript backwards and skippin
 - Marker file: typically <2KB
 
 Non-blocking: both hooks catch all errors and exit 0 so a handler failure never blocks a response.
+
+## Usage analytics (v0.2.0)
+
+Every hook and `skill-manage` action emits structured events via `hooks/lib/skill-stats-log.ts`:
+
+| Event | Emitter | Key fields |
+|-------|---------|-----------|
+| `nudge_fired` | `SkillNudge` (Stop) | count, tools[], session_id |
+| `nudge_injected` | `SkillNudgeInject` (UserPromptSubmit) | count, tools[], session_id |
+| `loaded` | `SkillLoadLogger` (PreToolUse:Skill) | skill, args, session_id |
+| `created` / `patched` / `deleted` | `skill-manage` | skill, category/file, session_id |
+
+One JSON object per line at `~/.claude/MEMORY/STATE/skill-stats.jsonl`. Logger is wrapped in try/catch — analytics failures never block the hot path.
+
+The `skill-stats` reporter exposes 6 subcommands: `summary`, `loaded`, `drift`, `unused`, `nudges`, `raw`. All accept `--days N` and `--json`. The `summary` default renders the nudge funnel plus top-loaded and never-loaded lists — enough to answer "is the self-improving loop actually producing useful skills?" without eyeballing raw jsonl.
+
+This feature exists because Luna (reviewing the v2 plan) pushed back on shipping a background review subagent before baseline measurement. Analytics was reordered ahead of autonomy so the reviewer can be tuned against real data rather than upfront guesses.
 
 ## Future: background review
 
