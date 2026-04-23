@@ -1,0 +1,63 @@
+# arc-manifest.yaml — Caduceus capability declaration
+schema: arc/v1
+name: caduceus
+version: 0.1.1
+type: skill
+tier: community
+namespace: jcfischer
+license: MIT
+description: Self-improving skills for Claude Code — agent-managed skill creation, in-flight patching, and end-of-turn nudges. Ported from NousResearch/hermes-agent.
+
+author:
+  name: jcfischer
+  github: jcfischer
+
+provides:
+  files:
+    - source: skills/skill-manage/SKILL.md
+      target: ~/.claude/skills/skill-manage/SKILL.md
+    - source: skills/skill-manage/scripts/skill-manage.ts
+      target: ~/.claude/skills/skill-manage/scripts/skill-manage.ts
+    - source: hooks/SkillNudgeInject.hook.ts
+      target: ~/.claude/hooks/SkillNudgeInject.hook.ts
+    - source: hooks/handlers/SkillNudge.ts
+      target: ~/.claude/hooks/handlers/SkillNudge.ts
+  skill:
+    - trigger: "skill-manage"
+    - trigger: "save as skill"
+    - trigger: "create skill"
+    - trigger: "patch skill"
+    - trigger: "update skill"
+  cli:
+    - name: skill-manage
+      command: bun ~/.claude/skills/skill-manage/scripts/skill-manage.ts
+      description: Create, edit, patch, delete, or list user skills (SKILL.md CRUD)
+  hooks:
+    - event: Stop
+      command: ${PAI_DIR}/hooks/handlers/SkillNudge.ts
+    - event: UserPromptSubmit
+      command: ${PAI_DIR}/hooks/SkillNudgeInject.hook.ts
+
+depends_on:
+  tools:
+    - name: bun
+      version: ">=1.0.0"
+
+capabilities:
+  filesystem:
+    read:
+      - "~/.claude/skills/"
+      - "~/.claude/projects/"     # transcript files (jsonl)
+      - "~/.claude/MEMORY/STATE/"
+    write:
+      - "~/.claude/skills/"
+      - "~/.claude/MEMORY/STATE/"  # nudge log + per-session markers
+  network:
+    - github.com
+    - agentskills.io
+  bash:
+    allowed: false
+  secrets: []
+
+scripts:
+  postinstall: ./scripts/postinstall.sh

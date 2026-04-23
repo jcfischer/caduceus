@@ -1,0 +1,10 @@
+node_modules/
+bun.lockb
+.DS_Store
+*.log
+/tmp/
+.env
+.env.local
+
+# arc bundle artifacts
+*.tar.gz
