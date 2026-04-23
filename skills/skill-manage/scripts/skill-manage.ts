@@ -111,6 +111,123 @@ function resolveSkillDir(name: string, category?: string): string {
   return category ? join(SKILLS_DIR, category, name) : join(SKILLS_DIR, name);
 }
 
+// ── Patch failure preview (diff-like context) ────────────────────────
+
+/** Returns the count of characters shared as a prefix between a and b. */
+function commonPrefix(a: string, b: string): number {
+  let i = 0;
+  const n = Math.min(a.length, b.length);
+  while (i < n && a[i] === b[i]) i++;
+  return i;
+}
+
+/** 0..1 overlap score between two lines, based on prefix + trimmed substring. */
+function lineOverlap(a: string, b: string): number {
+  const at = a.trim();
+  const bt = b.trim();
+  if (!at && !bt) return 1;
+  if (!at || !bt) return 0;
+  const shorter = at.length <= bt.length ? at : bt;
+  const longer = at.length <= bt.length ? bt : at;
+  if (longer.includes(shorter)) return shorter.length / longer.length;
+  return commonPrefix(at, bt) / Math.max(at.length, bt.length);
+}
+
+/** Find the index of the line in `lines` most similar to `probe` (exact-match preferred). */
+function findClosestLine(lines: string[], probe: string): { idx: number; score: number } {
+  let best = { idx: -1, score: 0 };
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i] === probe) return { idx: i, score: 1 };
+    const score = lineOverlap(lines[i], probe);
+    if (score > best.score) best = { idx: i, score };
+  }
+  return best;
+}
+
+function renderContext(lines: string[], centerIdx: number, radius = 3): string {
+  const start = Math.max(0, centerIdx - radius);
+  const end = Math.min(lines.length, centerIdx + radius + 1);
+  const width = String(end).length;
+  const out: string[] = [];
+  for (let i = start; i < end; i++) {
+    const marker = i === centerIdx ? '»' : ' ';
+    out.push(`${String(i + 1).padStart(width)} ${marker} ${lines[i]}`);
+  }
+  return out.join('\n');
+}
+
+function renderOldPreview(oldStr: string, maxLines = 8): string {
+  const lines = oldStr.split('\n');
+  if (lines.length <= maxLines) return lines.map((l) => `- ${l}`).join('\n');
+  return (
+    lines.slice(0, maxLines - 1).map((l) => `- ${l}`).join('\n') +
+    `\n- … ${lines.length - maxLines + 1} more lines`
+  );
+}
+
+/** Build a "not found" preview: show old string + closest-matching block in the file. */
+function buildNotFoundPreview(content: string, oldStr: string): string {
+  const fileLines = content.split('\n');
+  const oldLines = oldStr.split('\n');
+  const probe = oldLines[0] ?? '';
+  const { idx, score } = findClosestLine(fileLines, probe);
+  const scorePct = Math.round(score * 100);
+
+  const header = [
+    `Patch could not find the old string. Closest match in file: line ${idx + 1} (${scorePct}% overlap with first line of 'old').`,
+    '',
+    'You tried to match:',
+    renderOldPreview(oldStr),
+    '',
+    `File excerpt around line ${idx + 1}:`,
+  ];
+  if (idx === -1) {
+    return (
+      header.slice(0, 2).join('\n') +
+      '\n(no line in file resembled the first line of the old string)\n\nFirst 20 lines of file:\n' +
+      renderContext(fileLines, Math.min(10, fileLines.length - 1), 10)
+    );
+  }
+  return header.concat(renderContext(fileLines, idx, 3)).join('\n');
+}
+
+/** Build a "multiple matches" preview: show up to 3 match locations with context. */
+function buildMultipleMatchesPreview(content: string, oldStr: string, max = 3): string {
+  const fileLines = content.split('\n');
+  const firstLine = oldStr.split('\n')[0] ?? '';
+  const matches: number[] = [];
+  let pos = 0;
+  while (pos < content.length) {
+    const idx = content.indexOf(oldStr, pos);
+    if (idx === -1) break;
+    matches.push(idx);
+    pos = idx + oldStr.length;
+  }
+  // Convert byte positions → line numbers.
+  const lineStarts = [0];
+  for (let i = 0; i < content.length; i++) if (content[i] === '\n') lineStarts.push(i + 1);
+  const byteToLine = (byte: number) => {
+    let lo = 0,
+      hi = lineStarts.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (lineStarts[mid] <= byte) lo = mid;
+      else hi = mid - 1;
+    }
+    return lo;
+  };
+  const matchLines = matches.map(byteToLine);
+  const shown = matchLines.slice(0, max);
+
+  const sections = shown.map(
+    (ln, i) => `Match ${i + 1} at line ${ln + 1}:\n${renderContext(fileLines, ln, 2)}`,
+  );
+
+  let out = `Old string matched ${matches.length} times. Make the match unique by including more surrounding context, or pass --replace-all.\n\nFirst line of 'old': "${firstLine.slice(0, 80)}"\n\n${sections.join('\n\n')}`;
+  if (matches.length > max) out += `\n\n…and ${matches.length - max} more matches not shown.`;
+  return out;
+}
+
 // ── Atomic write ──────────────────────────────────────────────────────
 
 function atomicWrite(path: string, content: string): void {
@@ -189,15 +306,30 @@ function actionPatch(
   if (replaceAll) {
     newContent = content.split(oldStr).join(newStr);
     count = content.split(oldStr).length - 1;
-  } else {
-    const idx = content.indexOf(oldStr);
-    if (idx === -1) return { success: false, error: `old string not found in ${relative(loc.path, target)}` };
-    const next = content.indexOf(oldStr, idx + oldStr.length);
-    if (next !== -1)
+    if (count === 0) {
       return {
         success: false,
-        error: `old string matched multiple times in ${relative(loc.path, target)}; pass --replace-all to replace all, or provide more unique context`,
+        error: `old string not found in ${relative(loc.path, target)}`,
+        preview: buildNotFoundPreview(content, oldStr),
       };
+    }
+  } else {
+    const idx = content.indexOf(oldStr);
+    if (idx === -1) {
+      return {
+        success: false,
+        error: `old string not found in ${relative(loc.path, target)}`,
+        preview: buildNotFoundPreview(content, oldStr),
+      };
+    }
+    const next = content.indexOf(oldStr, idx + oldStr.length);
+    if (next !== -1) {
+      return {
+        success: false,
+        error: `old string matched multiple times in ${relative(loc.path, target)}; pass --replace-all or provide more unique context`,
+        preview: buildMultipleMatchesPreview(content, oldStr),
+      };
+    }
     newContent = content.slice(0, idx) + newStr + content.slice(idx + oldStr.length);
     count = 1;
   }

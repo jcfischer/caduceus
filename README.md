@@ -43,6 +43,22 @@ caduceus/
     └── hermes-origin.md
 ```
 
+## v0.3.0 — Patch-failure diff preview
+
+When `skill-manage patch` fails because the old string wasn't found (or matched multiple times), the response now includes a `preview` field with diff-like context so the model can self-correct without re-reading the whole file:
+
+```json
+{
+  "success": false,
+  "error": "old string not found in SKILL.md",
+  "preview": "Patch could not find the old string. Closest match in file: line 12 (47% overlap...)\n\nYou tried to match:\n- This is line tow in section A.\n\nFile excerpt around line 12:\n 9   \n10   ## Section A\n11   This is line one in section A.\n12 » This is line two in section A.\n13   This line appears twice below as well.\n14   ..."
+}
+```
+
+For multiple matches: shows up to 3 match locations with line numbers + ±2 lines of context.
+
+Port of hermes-agent's `format_no_match_hint` UX. Full multi-strategy fuzzy matching (whitespace-insensitive, indent-flexible, block-anchor) is separate — this ships the UX fix that matters most on patch failures.
+
 ## v0.2.0 — Skill usage analytics
 
 Every caduceus event (nudge fired, nudge injected, skill loaded, created, patched, deleted) writes a JSONL line to `~/.claude/MEMORY/STATE/skill-stats.jsonl`.
